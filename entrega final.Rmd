@@ -1,0 +1,663 @@
+---
+title: "Entrega del trabajo Final"
+author: 'Estefano Leonardo Pilco Cañari'
+date: "Ciclo 2022-1"
+subtitle: 'Estadística para el análisis político 2'
+
+output:
+  prettydoc::html_pretty:
+    theme: leonids
+    highlight: github
+    math: mathjax
+---
+
+```{r,echo=FALSE,message=FALSE, warning=FALSE}
+library(rio)
+data=import("https://github.com/leonardocpol/Base-de-Datos-MAGA/blob/main/base.xlsx?raw=true")
+data1=import("https://github.com/SebasVillalobos07/Estadistic2/blob/main/Matr%C3%ADcula_mundo.xlsx?raw=true")
+```
+
+## 1. Introducción y objetivos
+
+El presente trabajo aborda el desarrollo de diversos análisis estadísticos a través de la utilización en conjunto de variables independientes y una dependiente, las cuales se escogieron inicialmente debido a su naturaleza ecléctica. En el centro del estudio proponemos la variable dependiente "Inequidad de Género", y partiendo de esta se comenzará con un análisis de regresión que trate de demostrar cómo un grupo de variables independientes inciden en la Inequidad de Género; posteriormente, se utilizará el análisis de clustering para extraer determinados grupos divididos por sus características entre las unidades de analisis estudiadas (países del mundo);y por último, utilizaremos el análisis factorial para conocer si el conjunto de variables que utilizamos representan alguna(s) variable(s) latente(s). 
+
+## 2. Explicación de la dependiente y sustentar con literatura las independientes propuestas
+
+#### Variable dependiente
+
++ Desigualdad de género (gender_inequality)
+
+La variable dependiente "Desigualdad de género" fue obtenida del Human Development Reports del Programa De Las Naciones Unidas para el Desarrollo. Este refleja las desventajas basadas en el género en tres dimensiones: salud reproductiva, empoderamiento y mercado laboral. A partir de estos se crea el índice que tomamos como variable dependiente. 
+
+#### Variables independientes
+
++ PBI per cápita (gdp)
+
+Posteriormente se propuso la variable independiente "PBI per cápita". Esta es una variable económica cuya relevancia se sostiene en estudios como el realizado por el European Institute for Gender Equiality, que recalca cómo disminuir la inequidad de género tendría impactos fuertes y positivos en en el crecimiento del PBI per capita a través del tiempo.
+
++ Expectativa de vida en mujeres (life_expectancy_female)
+
+Asimiso, se propone la variable "Expectativa de vida en mujeres". Su relevancia proviene del estudio Gender inequality and the gender gap in life expectancy in the European Union de las autoras Petra Kolip y Cornelia Lange, quienes encuentran una correlación positiva entre la brecha de género en la esperanza de vida y el Índice de Inequidad de género. 
+
++ Educación (educaction)
+
+Por último, proponemos la variable "Educación". Es sabido que por cuestiones sociopolíticas y culturales la Educación se relaciona a la Inequidad de Género en el sentido de que a medida que haya menos oportunidades para la sociedad en acceder a la educación, existirá mayores trabas y dificultades en el entendimiento del rol primario que una mujer puede desempeñar en sociedad. Esta relación la expresa Radhika Kapur en su texto Gender Inequiality in Education, donde aborda todo tipo de relación entre la educación y la inequidad de género. 
+
+## 3. Análisis de regresión 
+
++ Desigualdad de género (gender_inequality)
++ PBI per cápita (gdp)
++ Expectativa de vida en mujeres (life_expectancy_female)
++ Educación (educaction)
+
+Nuestra hipotesis es que la desigualdad de género puede ser alterada por factores como el PBI per cápita, la expectative de vida en mujeres y la educación. Para comprobar nuestra hipótesis procederemos a realizar un análisis de regresión incluyendo todas las variables mencionadas. 
+Cabe resaltar que la elección de este modelo de regresión, con sus componentes correspondientes, son producto de un análisis previo de comparación de modelos que se efectuó con la prueba Anova, en la que se demostró que este era el más adecuado.
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+library("stargazer")
+modelo2=formula(gender_inequality~gdp+life_expectancy_female+education)
+reg2=lm(modelo2,data=data)
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+stargazer(reg2,type = "text",intercept.bottom = FALSE)
+summary(reg2)
+```
+
+De estas tablas que explican el modelo de regresión  podemos sostener que al menos en un primer momento el modelo propuesto funciona, ya que analizando el R cuadrado ajustado observamos que su valor es 0.87, cercano a 1 que es el escenario ideal.
+
+
+## 4. Análisis de cluster
+
+Para realizar el análisis de Cluster, añadiremos otra base de datos que traerá nuevas variables consigo al análisis. De esta manera trabajaremos con dos variables nuevas: gasto en educación (gastoedu) y el índice de matrículas educativas por país (Matrícula).
+
+```{r,echo=FALSE,message=FALSE, warning=FALSE}
+keep=c(1,2,3,4,5)
+data=data[,keep]
+keep1=c(1,2,4)
+data1=data1[,keep1]
+names(data1)[1]="country"
+allData=merge(data,data1)
+```
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+library(BBmisc)
+allData[,-1]=normalize(allData[,-1],method='standardize')
+allData=allData[complete.cases(allData),]
+
+allData$gender_inequality=-1*allData$gender_inequality
+
+dataClus=allData[,-1]
+row.names(dataClus)=allData$country
+```
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+library(cluster)
+g.dist = daisy(dataClus, metric="gower")
+set.seed(123)
+pam.resultado=pam(g.dist,3,cluster.only = F)
+dataClus$pam=pam.resultado$cluster
+
+library("ggplot2")
+base= ggplot(dataClus,aes(x=dim1, y=dim2,label=row.names(dataClus))) 
+set.seed(123)
+grupos=3
+res.pam=pam(g.dist,k = grupos,cluster.only = F)
+dataClus$pam=res.pam$cluster
+
+original=aggregate(.~ pam, data=dataClus,mean)
+original[order(original$gender_inequality),]
+
+
+proyeccion = cmdscale(g.dist, k=2,add = T)
+dataClus$dim1 <- proyeccion$points[,1]
+dataClus$dim2 <- proyeccion$points[,2]
+base= ggplot(dataClus,aes(x=dim1, y=dim2,label=row.names(dataClus))) 
+```
+
+Se realiza una gráfica con escalamiento multidimensional que nos permite realizar un análisis de conglomerados. Previamente a este se decidió, a través de un análisis gráfico de siluetas, que el método de partición idóneo era PAM.
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+base + geom_text(size=2, aes(color=as.factor(pam)))  + labs(title = "PAM") 
+```
+
+Se muestra la gráfica en dos dimensiones que ubica a los países en el mapa. Estos ya se encuentran clusterizados por el método de partición PAM. A través de este se notan tres grupos muy diferenciados. Observamos cómo los países agrupados bajo el color rojo son los que presentan menor índice de inequidad de género, mayor PBI per cápita, mayor nivel de educación, mayor expectativa de vida femenina, mayor índice de matrícula educativa y un mayor gasto en educación.Por el otro extremo, los países agrupados en el color azul son los que presentan un mayor índice de inequidad de género, menor PBI per cápita, menor nivel de educación, menor expectativa de vida femenina, menor índice de matrícula educativa y menor gasto en educación. Por último, en medio se ubican los países de color verde, los cuales tienen valores medios de todas las variables anteriormente mencionadas.
+
+
+
+## 5. Análisis factorial
+
+Como se observa, se propone una variable latente MR1, la cual reúne las variables previamente utilizadas excepto la variable "gasto en educación" por no aportar significativamente al factor. Asimismo, las variables que quedaron están bastante relacionadas. 
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+dontselect=c("country")
+select=setdiff(names(allData),dontselect) 
+theData=allData[,select]
+library(polycor)
+corMatrix=polycor::hetcor(theData)$correlations
+library(ggcorrplot)
+library(psych)
+library(matrixcalc)
+library(GPArotation)
+resfa <- fa(theData,
+            nfactors = 1,
+            cor = 'mixed',
+            rotate = "varimax",
+            fm="minres")
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+fa.diagram(resfa)
+```
+
+## 6. Conclusiones
+
+A lo largo del trabajo se realizaron múltiples análisis que terminaron desembocando en las siguientes conclusiones. En primer lugar, al realizar el análisis de regresión se propuso la hipótesis de que la desigualdad de género es afectada por el PBI per cápita y la expectativa de vida de las mujeres, controlando ambas por el nivel de educación. El análisis de regresión nos arroja (se ve en la tabla) un modelo fuerte. Es decir, podríamos decir que las variables anteriormente expuestas influencian en la desigualdad de género; sin embargo, al realizarle los diagnósticos de regresión no se logra pasar nuestro modelo por todas las pruebas. ¿Eso quiere decir que nuestro modelo no es funcional o no representa nada de la realidad? No. Sin embargo, nuestro modelo no es perfecto, y podría no cumplir para toda ocasión en la que se pretenda demostrar la relación entre las variables descritas. En segundo lugar, el análisis de clústers nos muestra el agrupamiento de nuestras variables junto con nuevas, las cuales fueron integradas a través del merge con otra base de datos. Las nuevas variables que incidirán en nuestro análisis son gasto en educación (gastoedu) y el índice de matrículas educativas por país (Matrícula). A través del desarrollo del análisis se demuestra que para agrupar lo recomendado es hacerlo en tres grupos y analizarlo a través de PAM (estrategia de partición). Con la ayuda de la representación gráfica observamos cómo los países agrupados con el color azul son los que presentan menor índice de inequidad de género, mayor PBI per cápita, mayor nivel de educación, mayor expectativa de vida femenina, mayor índice de matrícula educativa y un mayor gasto en educación. Este grupo está conformado por países desarrollados como Bélgica, Suiza o Dinamarca. Por el otro extremo, los países agrupados en el color azul son los que presentan un mayor índice de inequidad de género, menor PBI per cápita, menor nivel de educación, menor expectativa de vida femenina, menor índice de matrícula educativa y menor gasto en educación. Estos están conformados principalmente por países pobres como Burkina Faso, Sierra Leona o Mozambique. Por último, en medio se ubican los países agrupados con color verde, los cuales tienen valores medios de todas las variables anteriormente mencionadas. Aquí se ubican países en vías de desarrollo como Brasil, Perú o Cosa Rica. Por último, a través del análisis factorial se trabaja nuevamente con la unión de variables de las bases de datos propuestas (gasto en educación, PBI per cápita, expectativa de vida femenina en años, índice de matrícula educativa, índice educativo e inequidad de género). Se plantea la posibilidad de agrupar la data en uno o más factores o variables latentes. Para ver la posibilidad o imposibilidad de esto se realiza el análisis de variables latentes. El proceso de análisis factorial exploratorio nos arroja que se recomienda agrupar las variables en un factor o variable latente; además, se deja de lado la variable gasto en educación por no aportar significativamente al factor. Aparte de ello, el factor recoge información importante de las variables que la componen. Posteriormente al realizar el análisis factorial confirmatorio, los resultados nos indican que no se podría confirmar una variable latente construida a la perfección con las variables propuestas. Sin embargo, esto no quiere decir que la variable latente construida no sea útil, pero sí que no está construida como una variable latente ideal. 
+
+
+## 7. Anexos
+
+
+```{r,echo=FALSE,message=FALSE}
+library(rio)
+data=import("https://github.com/leonardocpol/Base-de-Datos-MAGA/blob/main/base.xlsx?raw=true")
+data1=import("https://github.com/SebasVillalobos07/Estadistic2/blob/main/Matr%C3%ADcula_mundo.xlsx?raw=true")
+```
+
+**7.a) Análisis de regresión y diagnósticos**
+
+Partimos analizando cómo la variable "Desigualdad de género" puede ser afectada por determinados factores.
+Nuestra primera hipotesis sostendrá que la "Desigualdad de género" es afectada por el "PBI per capita" de un país, controlando por un índice que representa "Educación". 
+Cuando probamos esta primera hipótesis observamos que PBI tiene efecto signicativo al 0.01 (indicado por los tres asteristicos); segundo, que ese efecto es inverso, pues el coeficiente calculado es negativo; y tercero, que la magnitud de ese efecto es -0.000002661, lo que indica cuánto varía la variable desigualdad de género en promedio cuando PBI se incrementa en una unidad, controlando por la variable Educación. Además, el R cuadrado ajustado (0.837) nos brinda una muestra de la cercanía a una situación perfecta (cuando vale 1). 
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+modelo1=formula(gender_inequality~gdp+education)
+reg1=lm(modelo1,data=data)
+library(stargazer)
+stargazer(reg1,type = "text",intercept.bottom = FALSE)
+```
+
+La ecuación que representa esta relación es la siguiente:
+
+          +gender_inequality = 0.908 + -0.0000026xgdp + -0.757xeducation + ϵ
+
+Nuestra segunda hipotesis sostendrá que la "Desigualdad de género" es afectada por el "PBI per capita" de un país y la "Expectativa de vida de mujeres", controlando ambas por el índice que representa "Educación". 
+Cuando probamos esta segunda hipótesis observamos que PBI tiene un efecto significativo al 0.01 (indicado por los tres asteriscos); ese efecto es inverso, pues el coeficiente calculado es negativo; y la magnitud de ese efecto es -0.000002083, lo que indica cuánto varía Desigualdad de género en promedio cuando PBI se incremente en una unidad, controlando por la variable educación. Así mismo, vemos que la variable expectativa de vida de las mujeres tiene efecto significativo al 0.01 (indicado por los astericos); ese efecto es indirecto, pues el coeficiente calculado es negativo; y la magnitud de ese efecto es -0.009, lo que indica cuánto varía Desigualdad de género en promedio cuando la variable se incrementa en una unidad, controlando por educación. 
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+modelo2=formula(gender_inequality~gdp+life_expectancy_female+education)
+reg2=lm(modelo2,data=data)
+stargazer(reg2,type = "text",intercept.bottom = FALSE)
+```
+
+La ecuación que representa esta relación es la siguiente:
+
+    +gender_inequality = 1.366 + -0.0000020xgdp + -0.009xlife_expectancy_female + -0.478xeducation + ϵ
+
+
+Asimismo, notamos que hay una variación de un modelo a otro del valor del Residual Standar Error (RSE). Por ello, vale la pena preguntarse si esta disminución del error es significativa. La comparación de modelos usando la tabla de análisis de varianza (anova) propone como hipótesis nula que los modelos no difieren (no se ha reducido el error al pasar de un modelo al otro). Como la comparación es significativa (viendo el Pr(>F)), rechazamos igualdad de modelos: el modelo 2 sí reduce el error al incluir una variable más. Por lo tanto, nos quedamos con el modelo 2. 
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+tanova=anova(reg1,reg2)
+stargazer(tanova,type = 'text',summary = F,title = "Tabla de Análisis de Varianza")
+```
+
+Continuando, para que se considere que el modelo de regresión elegido es el adecuado, debemos verificar algunos requisitos a posterior. Para ello, aplicamos los diagnósticos de regresión. 
+
+#### Diagnósticos de regresión
+
++ Linealidad: analizando el gráfico siguiendo la línera roja, se asume relación lineal entre Y y Xs
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+plot(reg2, 1)
+```
+
++ Homocedasticidad: la tendencia de la línera roja parece ser medianamente estable, por lo que da a suponer la homocedasticidad del modelo. 
+
+```{r,,echo=FALSE, message=FALSE, warning=FALSE}
+plot(reg2, 3)
+```
+
+Para confirmar podemos utilizar el test de Breusch-Pagan: al ver los resultados, notamos que la probabilidad de homocedasticidad que se muestra a través del p-value es menor a 0.05, por lo que se rechaza que el modelo muestre homocedasticidad. 
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+library(lmtest)
+bptest(reg2)
+```
+
++ Normalidad de los residuos
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+plot(reg2, 2)
+```
+
+Aplicamos el test de Shapiro a los residuos: Como el p-value es mayor a 0.05, aceptamos la hipótesis nula y conlcuimos que los residuos se distribuyen normalmente.
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+shapiro.test(reg2$residuals)
+```
+
++ No multicolinelidad: si los predictores tienen una correlación muy alta entre sí, hay multicolinealidad, lo cual no es deseable. Vemos que ninguno es mayor a 5, por lo que no hay problema. 
+
+```{r,,echo=FALSE, message=FALSE, warning=FALSE}
+library(DescTools)
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+VIF(reg2) 
+```
+
++ Valores influyentes: Hay casos particulares, que tienen la capacidad de trastocar negativamente el modelo. Detectándolos y suprimiéndolos podemos diseñar un mejor modelo.
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+plot(reg2, 5)
+```
+
+Recuperamos los casos influyentes
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+checkReg2=as.data.frame(influence.measures(reg2)$is.inf)
+head(checkReg2)
+```
+
+Proceemos a verificar el índice de Cook y los valores predecidos (los hat values):
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+checkReg2[checkReg2$cook.d & checkReg2$hat,]
+```
+
+En este caso no se observa ningún país que esté afectando significativamente a la regresión.
+
+
+**7.b) Análisis de conglomerados** 
+
+Para hacer el análisis de conglomerados partimos de dos bases de datos con la misma unidad de análisis (países). A la base que veníamos trabajando, añadimos la base de datos de mi compañero de grupo Sebastián. Esto nos terminará aportando dos nuevas variables: gasto en educación (gastoedu) y el índice de matrículas educativas por país (Matrícula).
+
+
++ Verficamos la distribución de los datos
+
+En el boxplot se observa que los valores entre las variables difieren de manera muy grande, por lo que es recomendado tranformar los datos para que el algoritmo de conglomeración no se confunda.
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+keep=c(1,2,3,4,5)
+data=data[,keep]
+
+
+keep1=c(1,2,4)
+data1=data1[,keep1]
+
+names(data1)[1]="country"
+allData=merge(data,data1)
+boxplot(allData[,-1])
+
+```
+
+
+Probamos ajustando los valores en un rango de 0 a 1
+```{r}
+boxplot(normalize(allData[,-1],method='range',range=c(0,1)))
+```
+
+También podemos probar estandarizando los valores
+```{r}
+boxplot(normalize(allData[,-1],method='standardize'))
+
+allData[,-1]=normalize(allData[,-1],method='standardize')
+allData=allData[complete.cases(allData),]
+```
+
+Dado que los valores lucen más cercanos en el visionado del boxplot, decidimos quedarnos con la opción de estandarización de los datos.
+
+
+Veamos las correlaciones. 
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+cor(allData[,-1])
+```
+
+Nótese que la data de "gender_inequality" se correlaciona negativamente. El valor es muy cercano a cero, pero practiquemos cambio de monotonia:
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+allData$gender_inequality=-1*allData$gender_inequality
+cor(allData[,-1])
+```
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+#Preparamos los datos para la clusterización
+dataClus=allData[,-1]   
+row.names(dataClus)=allData$country
+```
+
+#### Procesos de clusterización
+
+1. Calculamos la distancia entre los casos
+
+```{r}
+library(cluster)
+g.dist = daisy(dataClus, metric="gower") 
+```
+
+2. Escogemos la cantidad de clusters a partir de las gráficas
+
++ Para estrategia de partición (PAM)
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+## para PAM
+library(factoextra)
+fviz_nbclust(dataClus, pam,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F)
+```
+
++ Para método jerárquico
+
+a. Estrategia aglomerativa
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+## PARA AGNES
+fviz_nbclust(dataClus, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F,hc_func = "agnes")
+```
+
+b. Estrategia de división
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+## PARA JERARQUICO
+fviz_nbclust(dataClus, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F,hc_func = "diana")
+```
+
+A través del visionado de los gráficos anteriores notamos que es recomendable dividir los datos en tres grupos. Por lo tanto, este será nuestro número de clusters.
+
+
+#### Evaluamos los resultados para decidir nuestro método
+
+A través de la comparación de los gráficos de silueta evaluaremos qué estrategia se ajusta a nuestro caso. 
+
+```{r,echo=FALSE,message=FALSE}
+###pam
+set.seed(123)
+grupos=3
+res.pam=pam(g.dist,k = grupos,cluster.only = F)
+dataClus$pam=res.pam$cluster
+
+###agnes
+res.agnes<- hcut(g.dist, k =grupos,hc_func='agnes',hc_method = "ward.D")
+dataClus$agnes=res.agnes$cluster
+
+### diana
+res.diana <- hcut(g.dist, k = grupos,hc_func='diana')
+dataClus$diana=res.diana$cluster
+```
+
++ Mediante "pam"
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+fviz_silhouette(res.pam)
+```
+
+Como se observa en este gráfico, existen valores por debajo de la media. Sin embargo, a la misma vez existen pocos valores negativos que quedan fuera. Este podría ser el modelo ideal, pero sigamos evaluando. 
+
+
++ Mediante "agnes"
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+fviz_silhouette(res.agnes)
+```
+
+En este gráfico existen valores por debajo de la media que indican que su pertenencia a sus respectivos clusters no es necesariamente precisa, pero que es mejor a que se ubique en otro lugar. Asimismo, se observan valores negativos que quedaron fuera.
+
+
++ Mediante "diana"
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+fviz_silhouette(res.diana)
+```
+
+En este caso existen muchos valores por debajo de la media y muchos valores negativos que quedan afuera. 
+
++ Al evaluar, vemos que todos los métodos presentan valores negativos, pero al escoger entre ellos y basándonos en la sileuta escogeremos PAM. 
+
+
+#### Estrategia de partición
+
+```{r}
+set.seed(123)
+pam.resultado=pam(g.dist,3,cluster.only = F)  
+
+# creamos una nueva columna llamada PAM
+
+dataClus$pam=pam.resultado$cluster    
+aggregate(.~ pam, data=dataClus,mean)
+```
+
+En este caso, ordenamos los grupos por inequidad de género. 
+
+```{r}
+original=aggregate(.~ pam, data=dataClus,mean)
+original[order(original$gender_inequality),]
+```
+
+Después de ordernarlo por la variable inequidad de género, tenemos que los países que se ubican en el grupo 1 son los que tienen un índice mayor de inequidad de género, y por lo tanto los valores más bajos de PBI per cápira, educación, expectativa de vida femenina, matríulas eductivas y gasto en educación. 
+
+Podemos trasladarlo observado a un gráfico, donde se observa la gráfica en dos dimensiones final que ubica a los países en el mapa. Estos ya se encuentran clusterizados por el método de partición PAM en tres grupos.
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+library("ggplot2")
+
+proyeccion = cmdscale(g.dist, k=2,add = T)
+dataClus$dim1 <- proyeccion$points[,1]
+dataClus$dim2 <- proyeccion$points[,2]
+base= ggplot(dataClus,aes(x=dim1, y=dim2,label=row.names(dataClus)))  
+base+ geom_text(size=2, aes(color=as.factor(pam)))  + labs(title = "PAM")   
+```
+
+#### Estrategia jerarquica
+
+##### a) Estrategia aglomerativa (algoritmo agnes)
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+
+set.seed(123)
+library(factoextra)
+
+res.agnes<- hcut(g.dist, k = 3,hc_func='agnes',hc_method = "ward.D")
+
+dataClus$agnes=res.agnes$cluster
+```
+
+```{r}
+aggregate(.~ agnes, data=dataClus,mean)
+```
+
++ Visualizamos con el dendograma
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+fviz_dend(res.agnes, cex = 0.7, horiz = T)
+```
+
+El dendograma presentado nos ayuda a visualizar cómo se ha clusterizado los países con el método de aglomeración.
+
+##### b) Estrategia divisiva (algoritmo diana)
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+set.seed(123)
+res.diana <- hcut(g.dist, k = 3,hc_func='diana')
+dataClus$diana=res.diana$cluster
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+aggregate(.~ diana, data=dataClus,mean)
+```
+
+Recodifiquemos
+```{r}
+original=aggregate(.~ diana, data=dataClus,mean)
+original[order(original$gender_inequality),]
+```
+ 
+```{r}
+dataClus$diana=dplyr::recode(dataClus$diana, `3` = 2, `1`=1,`2`=3)
+```
+
++ Visualicemos con el dendograma que nos muestra el proceso de conglomeración:
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+fviz_dend(res.diana, cex = 0.7, horiz = T)
+```
+
+El dendograma en la estrategia divisiva nos permite observar cómo los datos partieron de una unidad y fueron dividiéndose según su similitud.
+
++ Comaparando: vemos qué tanto se asemejan los métodos de partición y aglomeración
+```{r}
+table(dataClus$pam,dataClus$agnes,dnn = c('Particion','Aglomeracion'))
+```
+Notamos que entre ambos métodos existe cieta diferenciación entre los valores tomados por cada cluster. 
+
+#### Estrategia basada en densidad
+
+El algoritmo dbscan requiere dos parametros:
+
+1. La distancia epsilon a usar para clusterizar los casos
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+g.dist.cmd = daisy(dataClus[,c('dim1','dim2')], metric = 'euclidean')
+#Calculo de epsilon
+library(dbscan)
+kNNdistplot(g.dist.cmd, k=3)
+```
+
+Notamos mediante el gráfico y la proyección del codo que el epsilon está aproximadamente en 0.09
+
+2. La cantidad k minima de puntos para formar un cluster. El valor k que se usará es la cantidad de dimensiones.
+
+```{r}
+library(fpc)
+db.cmd = fpc::dbscan(g.dist.cmd, eps=0.09, MinPts=3,method = 'dist')
+```
+
+De lo anterior podemos saber que se han obtenido 3 clusters y que hay 5 elementos que no se pudieron clusterizar
+```{r}
+db.cmd
+```
+
+
+**7.c) Análisis de Variables latentes**
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+dontselect=c("country")
+select=setdiff(names(allData),dontselect) 
+theData=allData[,select]
+library(polycor)
+corMatrix=polycor::hetcor(theData)$correlations
+```
+
+Explorar correlaciones: las correalaciones dan una buena primera impresión para lograr un valor factorial. 
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+library(ggcorrplot)
+ggcorrplot(corMatrix)
+```
+
+Verificar si datos permiten factorizar:
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+library(psych)
+psych::KMO(corMatrix) 
+```
+El valor del KMO es muy importante. Este va de 0 a 1, por lo que nuestro valor de 0.84 obtenido  indica que las variables están relacionadas. Asimismo, vemos que las variables que màs parecen explicar expectativa de vida femenina e inequidad de género.
+
+
+Verificar si la matriz de correlaciones es adecuada mediante dos pruebas
+
+1. Hnula: La matriz de correlacion es una matriz identidad
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+cortest.bartlett(corMatrix,n=nrow(theData))$p.value>0.05
+```
+2. Hnula: La matriz de correlacion es una matriz singular.
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+library(matrixcalc)
+is.singular.matrix(corMatrix)
+```
+
+Ambas pruebas resultaron falsas, por lo que procederemos a determinar en cuantos factores o variables latentes podríamos redimensionar la data. 
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+fa.parallel(theData,fm = 'ML', fa = 'fa',correct = T)
+```
+A través del análisis del siguiente gráfico, notamos que se sugiere una variable latente. 
+
+
+Redimensionar a numero menor de factores. Resultado inicial:
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+library(GPArotation)
+resfa <- fa(theData,
+            nfactors = 1,
+            cor = 'mixed',
+            rotate = "varimax",
+            fm="minres")
+print(resfa$loadings)
+```
+Observando la proporción de varianza notamos que las variables tienen un 71.2% en común entre sí, por lo que está recogiendo información importante para el concepto latente.
+
++ Visualizamos
+```{r}
+fa.diagram(resfa)
+```
+
++ Evaluamos el resultado obtenido
+```{r}
+sort(resfa$communality)
+```
+En este caso, las variables que más aportaron fueron education y gender_inequality
+
+#### Análisis Factorial Confirmatorio
+
+La exploración anterior ayudó a construir un marco teórico. Ahora proponer cómo construir los indices
+
+```{r}
+model <- ' indice  =~ gender_inequality + education + Matricula + life_expectancy_female + gdp'
+```
+
+Ahora veamos qué dice el modelo
+
+Preparamos los tests
+
+```{r}
+theDataNorm=as.data.frame(scale(theData))
+
+library(lavaan)
+cfa_fit <- cfa(model, data=theDataNorm, 
+           std.lv=TRUE,  
+           missing="fiml")
+```
+
++ Preparo los tests:
+```{r}
+allParamCFA=parameterEstimates(cfa_fit,standardized = T)
+allFitCFA=as.list(fitMeasures(cfa_fit))
+```
+
++ Veamos resultados: si un indicador tiene buena relación con su latente dependerá del p-value.
+```{r}
+allParamCFA[allParamCFA$op=="=~",]
+```
+
++ Analicemos el modelo
+
+##### El ChiSquare
+```{r}
+allFitCFA[c("chisq", "df", "pvalue")] # pvalue>0.05
+```
+En este caso, el p-value salió menor a 0.05.
+
+##### El índice de Tucker Lewi (debe ser mayor a 0.90)
+
+```{r}
+allFitCFA$tli # > 0.90
+```
+En este caso el índice de Tucker Lewi no es mayor a 0.90
+
+##### La Raíz del error cuadrático medio de aproximación es menor a 0.05?
+
+```{r}
+allFitCFA[c('rmsea.ci.lower','rmsea' ,'rmsea.ci.upper')] # 0.05 en el Int de Conf?
+```
+En este caso, la raíz del error cuadrático medio de aproximaciónes es mayor a 0.05, por lo que tampoco cumple este requisito. Estos resultados nos indican que no se podría confirmar una variable latente construida a la perfección. Esto no quiere decir que no sea útil, pero sí que no está construida como una variable latente ideal.  
+
+
+### 8. Bibliografía
+
+European Institute for Gender Equality. (s. f.). Economic case for gender equality in the EU. Recuperado 11 de julio de 2022, de https://eige.europa.eu/gender-mainstreaming/policy-areas/economic-and-financial-affairs/economic-benefits-gender-equality/economic-case
+
+Human Development Resources. (s. f.). GENDER INEQUALITY INDEX (GII). Human Development. Recuperado 11 de julio de 2022, de https://hdr.undp.org/data-center/thematic-composite-indices/gender-inequality-index#/indicies/GII
+
+Kapur, R. (2019). GENDER INEQUALITY IN EDUCATION. International Journal of Transformations in Business Management, 9(1), 1–12. https://www.researchgate.net/publication/334162862_Gender_Inequality_in_Education
+
+Kolip, P., & Lange, C. (2018). Gender inequality and the gender gap in life expectancy in the European Union. European Journal of Public Health, 28(5), 869–872. https://doi.org/10.1093/eurpub/cky076
+
